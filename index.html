@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주간 회의록</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #F0F4F8;
+  --surface:   #FFFFFF;
+  --border:    #D8E0E8;
+  --border2:   #B8C8D8;
+  --text:      #1A2535;
+  --text2:     #4A5568;
+  --text3:     #8A97A8;
+  --accent:    #2563EB;
+  --accent-lt: #EFF6FF;
+  --teal-lt:   #F0FDFA;
+  --green-lt:  #F0FDF4;
+  --amber:     #B45309;
+  --amber-lt:  #FFFBEB;
+  --purple-lt: #F5F3FF;
+  --red:       #DC2626;
+  --cell-min:  130px;   /* 셀 최소 높이 */
+}
+
+/* ── Firebase 설정 화면 ── */
+#fb-setup{position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
+.fb-box{background:#fff;border-radius:16px;padding:28px 26px;width:100%;max-width:520px;box-shadow:0 24px 60px rgba(0,0,0,.22)}
+.fb-box h2{font-size:18px;font-weight:700;margin-bottom:6px}
+.fb-sub{font-size:13px;color:#4A5568;margin-bottom:18px;line-height:1.65}
+.fb-step{background:#F8FAFC;border-radius:10px;padding:16px;margin-bottom:18px;font-size:13px;line-height:2;color:#4A5568}
+.fb-step strong{color:#1A2535}
+.fb-step a{color:#2563EB;text-decoration:none}
+.fb-step code{background:#E2E8F0;border-radius:4px;padding:1px 7px;font-size:12px;font-family:monospace}
+.fb-label{font-size:12px;font-weight:600;color:#4A5568;margin-bottom:5px;display:block}
+.fb-inp{width:100%;border:1.5px solid #D8E0E8;border-radius:8px;padding:10px 13px;font-family:inherit;font-size:14px;outline:none;margin-bottom:10px;transition:border .2s}
+.fb-inp:focus{border-color:#2563EB}
+.fb-ok{width:100%;padding:12px;border-radius:9px;background:#2563EB;color:#fff;border:none;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:background .2s}
+.fb-ok:hover{background:#1D4ED8}
+.fb-note{font-size:11.5px;color:#8A97A8;margin-top:12px;line-height:1.6}
+/* 로딩 오버레이 */
+#fb-loading{position:fixed;inset:0;background:#fff;z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.fb-spin{width:36px;height:36px;border-radius:50%;border:3px solid #E2E8F0;border-top-color:#2563EB;animation:fbspin .8s linear infinite}
+@keyframes fbspin{to{transform:rotate(360deg)}}
+/* 상단 동기화 진행 바 */
+#sync-bar{position:fixed;top:0;left:0;height:3px;background:#2563EB;width:0;transition:width .3s;z-index:9999}
+
+html { height: 100%; }
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─────────────────── TOP NAV ─────────────────── */
+.topnav {
+  background: #fff;
+  border-bottom: 1.5px solid var(--border);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  height: 54px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.07);
+}
+
+.nav-logo {
+  font-size: 16px; font-weight: 700;
+  padding-right: 20px;
+  border-right: 1.5px solid var(--border);
+  margin-right: 16px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.nav-logo span { color: var(--accent); }
+
+/* 주차 탭 영역 */
+.week-tabs {
+  display: flex;
+  align-items: flex-end;
+  align-self: stretch;
+  padding-top: 10px;
+  gap: 2px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+}
+.week-tabs::-webkit-scrollbar { display: none; }
+
+.week-tab {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 16px;
+  border-radius: 6px 6px 0 0;
+  border: 1.5px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: var(--text3);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  font-family: inherit;
+  transition: all .15s;
+  bottom: -1.5px; position: relative;
+  height: 38px;
+}
+.week-tab:hover { background: var(--accent-lt); color: var(--accent); }
+.week-tab.active {
+  background: #fff;
+  border-color: var(--border);
+  border-bottom-color: #fff;
+  color: var(--accent);
+  font-weight: 700;
+}
+.issue-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--red); color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-add-btn {
+  margin-left: 6px; flex-shrink: 0;
+  padding: 6px 14px;
+  border: 1.5px dashed var(--border2);
+  border-radius: 6px;
+  background: transparent; color: var(--text3);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+  transition: all .15s;
+}
+.nav-add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-lt); }
+
+.nav-right {
+  display: flex; align-items: center; gap: 8px;
+  margin-left: 16px; padding-left: 16px;
+  border-left: 1.5px solid var(--border);
+  flex-shrink: 0;
+}
+.save-status {
+  font-size: 11.5px; color: var(--text3);
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
+}
+.save-dot { width: 7px; height: 7px; border-radius: 50%; background: #22C55E; transition:background .3s; }
+.save-dot.saving { background: #F59E0B; }
+.save-dot.err    { background: #EF4444; }
+
+.nav-btn {
+  padding: 6px 14px; border-radius: 6px;
+  border: 1.5px solid var(--border); background: #fff;
+  color: var(--text2); font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit; white-space: nowrap;
+  transition: all .15s;
+}
+.nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+.nav-btn-blue { background: var(--accent); border-color: var(--accent); color: #fff; }
+.nav-btn-blue:hover { background: #1D4ED8; color: #fff; }
+
+/* ─────────────────── SHEET WRAPPER ─────────────────── */
+.sheet-wrapper {
+  flex: 1;
+  padding: 14px 20px 28px;
+  overflow-x: auto;
+}
+
+/* ─────────────────── META STRIP ─────────────────── */
+.sheet-meta {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 10px; flex-wrap: wrap;
+}
+.meta-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 13px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  font-size: 13px;
+}
+.meta-chip label { color: var(--text3); font-weight: 600; font-size: 12px; white-space: nowrap; }
+.meta-chip input {
+  border: none; outline: none;
+  font-family: inherit; font-size: 13px;
+  color: var(--text); background: transparent;
+  min-width: 80px;
+}
+.meta-notice {
+  flex: 1; min-width: 280px;
+  background: var(--amber-lt); border-color: #FDE68A;
+  align-items: flex-start;   /* label이 textarea 상단에 붙도록 */
+  padding: 8px 13px;
+}
+.meta-notice label {
+  color: var(--amber);
+  padding-top: 2px;           /* label 세로 정렬 미세 조정 */
+}
+.meta-notice-ta {
+  flex: 1;
+  border: none; outline: none; resize: none;
+  font-family: inherit; font-size: 13px;
+  color: var(--amber); background: transparent;
+  line-height: 1.55;
+  overflow: hidden;
+  min-height: 22px;           /* 한 줄 기본 높이 */
+  min-width: 200px;
+  padding: 0;
+}
+.meta-notice-ta::placeholder { color: #D97706; opacity: 0.7; }
+
+/* ─────────────────── ISSUE BANNER ─────────────────── */
+.issue-banner {
+  margin-bottom: 10px;
+  background: #fff;
+  border: 1.5px solid #FCA5A5;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.issue-banner-head {
+  background: #FEF2F2;
+  padding: 8px 16px;
+  display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid #FECACA;
+}
+.issue-banner-title { font-size: 13px; font-weight: 700; color: var(--red); }
+.issue-cnt-badge {
+  background: var(--red); color: #fff;
+  font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 20px;
+}
+.issue-items { display: flex; flex-wrap: wrap; }
+.issue-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 9px 16px;
+  border-right: 1px solid #FEE2E2;
+  min-width: 220px; flex: 1;
+}
+.issue-item:last-child { border-right: none; }
+.issue-dot2 { width: 6px; height: 6px; border-radius: 50%; background: var(--red); flex-shrink: 0; margin-top: 5px; }
+.issue-content { font-size: 13px; color: #7F1D1D; line-height: 1.45; }
+.issue-meta { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.issue-sbadge {
+  font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 4px;
+  white-space: nowrap; flex-shrink: 0; margin-top: 2px;
+}
+
+/* ─────────────────── MAIN TABLE ─────────────────── */
+.sheet-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1.5px solid var(--border2);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  min-width: 1000px;
+  table-layout: fixed;
+}
+
+/* 컬럼 너비 */
+col.c-prod   { width: 92px; }
+col.c-name   { width: 90px; }
+col.c-wip    { width: auto; }
+col.c-done   { width: auto; }
+col.c-issue  { width: auto; }
+col.c-status { width: 118px; }
+col.c-next   { width: 180px; }
+
+/* 헤더 */
+.sheet-table thead th {
+  height: 42px;
+  font-size: 12.5px; font-weight: 700;
+  border-bottom: 2px solid var(--border2);
+  border-right: 1.5px solid var(--border);
+  padding: 0 14px;
+  text-align: center; white-space: nowrap;
+}
+.sheet-table thead th:last-child { border-right: none; }
+.th-prod   { background: #EFF6FF; color: #1E40AF; }
+.th-name   { background: #EFF6FF; color: #1E40AF; }
+.th-wip    { background: #F0FDFA; color: #0F766E; }
+.th-done   { background: #F0FDF4; color: #15803D; }
+.th-issue  { background: #FFFBEB; color: var(--amber); }
+.th-status { background: #FFFBEB; color: var(--amber); }
+.th-next   { background: #F5F3FF; color: #5B21B6; }
+
+/* 데이터 행 */
+.sheet-table tbody tr { border-bottom: 1.5px solid var(--border); }
+.sheet-table tbody tr:last-child { border-bottom: none; }
+.sheet-table tbody td {
+  border-right: 1.5px solid var(--border);
+  padding: 0; vertical-align: top;
+}
+.sheet-table tbody td:last-child { border-right: none; }
+
+/* 제품 셀 */
+.td-prod {
+  background: #EFF6FF;
+  vertical-align: middle !important;
+  text-align: center;
+  padding: 10px 6px !important;
+}
+.ptags { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.ptag {
+  font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+}
+
+/* 담당자 셀 */
+.td-name {
+  background: #F8FAFF;
+  vertical-align: middle !important;
+  text-align: center;
+  padding: 10px 8px !important;
+}
+.name-av {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700; margin: 0 auto 5px;
+}
+.name-txt  { font-size: 14px; font-weight: 700; display: block; }
+.name-leave { font-size: 11px; color: var(--text3); display: block; margin-top: 2px; }
+
+/* 텍스트 셀 — 핵심: overflow:hidden + JS auto-grow */
+.td-cell { position: relative; }
+.td-ta {
+  width: 100%; display: block;
+  min-height: var(--cell-min);
+  border: none; outline: none;
+  resize: none;
+  overflow: hidden;        /* ← 스크롤바 완전 제거 */
+  font-family: inherit;
+  font-size: 14px;         /* ← 글자 크게 */
+  line-height: 1.75;
+  padding: 11px 14px;
+  background: transparent; color: var(--text);
+}
+.td-ta::placeholder { color: var(--text3); font-size: 13px; }
+.td-ta:focus { background: rgba(37,99,235,0.025); }
+
+.td-wip   { background: var(--teal-lt); }
+.td-done  { background: var(--green-lt); }
+.td-issue { background: var(--amber-lt); padding: 0 !important; }
+.td-next  { background: var(--purple-lt); }
+.td-wip   .td-ta { color: #134E4A; }
+.td-done  .td-ta { color: #166534; }
+.td-next  .td-ta { color: #5B21B6; }
+
+/* ── 이슈 리스트 셀 ─────────────────────────────── */
+.issue-list-wrap {
+  display: flex; flex-direction: column;
+  min-height: var(--cell-min);
+  padding: 8px 10px;
+  gap: 6px;
+}
+.issue-row-item {
+  display: flex; align-items: flex-start; gap: 6px;
+  background: rgba(255,255,255,0.65);
+  border: 1px solid rgba(180,83,9,0.15);
+  border-radius: 7px;
+  padding: 6px 8px;
+  position: relative;
+  transition: box-shadow .12s;
+}
+.issue-row-item:focus-within {
+  box-shadow: 0 0 0 2px rgba(180,83,9,0.25);
+  background: #fff;
+}
+.issue-row-num {
+  font-size: 10px; font-weight: 800; color: #D97706;
+  background: #FEF3C7; border-radius: 4px;
+  padding: 1px 5px; flex-shrink: 0; margin-top: 3px;
+  min-width: 20px; text-align: center;
+}
+.issue-row-ta {
+  flex: 1; border: none; outline: none; resize: none;
+  overflow: hidden; background: transparent;
+  font-family: inherit; font-size: 13.5px; line-height: 1.65;
+  color: #78350F; min-height: 24px; padding: 0;
+}
+.issue-row-ta::placeholder { color: #D97706; opacity: 0.55; font-size: 12.5px; }
+
+.issue-row-right {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  flex-shrink: 0;
+}
+.issue-row-sel {
+  border: 1.5px solid #FDE68A; border-radius: 5px;
+  background: #FFFBEB; color: #92400E;
+  font-size: 11px; font-weight: 700;
+  font-family: inherit; cursor: pointer; outline: none;
+  padding: 3px 6px; text-align: center;
+  transition: all .12s; white-space: nowrap;
+}
+.issue-row-sel:focus { border-color: #F59E0B; }
+.issue-row-sel.s-done   { background: #DCFCE7; color: #166534; border-color: #86EFAC; }
+.issue-row-sel.s-wip    { background: #DBEAFE; color: #1E40AF; border-color: #93C5FD; }
+.issue-row-sel.s-check  { background: #FEF3C7; color: #92400E; border-color: #FCD34D; }
+.issue-row-sel.s-urgent { background: #FEE2E2; color: #991B1B; border-color: #FCA5A5; }
+.issue-row-sel.s-none   { background: #F1F5F9; color: #64748B; border-color: #CBD5E1; }
+
+.issue-row-del {
+  background: none; border: none; cursor: pointer;
+  color: rgba(180,83,9,0.35); font-size: 14px; line-height: 1;
+  padding: 1px 2px; border-radius: 3px;
+  transition: color .12s;
+}
+.issue-row-del:hover { color: var(--red); }
+
+.issue-add-btn {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 6px 10px;
+  border: 1.5px dashed rgba(180,83,9,0.3);
+  border-radius: 7px; background: transparent;
+  color: #D97706; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+  transition: all .15s; margin-top: 2px;
+}
+.issue-add-btn:hover {
+  border-color: var(--amber); background: rgba(251,191,36,0.08);
+  color: var(--amber);
+}
+
+/* 상태 셀 */
+.td-status {
+  background: #fff;
+  vertical-align: middle !important;
+  text-align: center;
+  padding: 10px 8px !important;
+}
+.status-sel {
+  width: 102px; padding: 7px 8px;
+  border-radius: 7px; border: 1.5px solid var(--border);
+  font-size: 12.5px; font-weight: 700;
+  font-family: inherit; cursor: pointer; outline: none;
+  text-align: center; transition: all .15s;
+}
+.s-none   { background: #F1F5F9; color: #64748B; border-color: #CBD5E1; }
+.s-done   { background: #DCFCE7; color: #166534; border-color: #86EFAC; }
+.s-wip    { background: #DBEAFE; color: #1E40AF; border-color: #93C5FD; }
+.s-check  { background: #FEF3C7; color: #92400E; border-color: #FCD34D; }
+.s-urgent { background: #FEE2E2; color: #991B1B; border-color: #FCA5A5; }
+
+.leave-row td { opacity: 0.45; }
+
+/* ─────────────────── DRAWER (작성자 관리) ─────────────────── */
+.overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(15,23,42,0.3); z-index: 200;
+}
+.overlay.open { display: block; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: 390px; background: #fff;
+  box-shadow: -8px 0 36px rgba(0,0,0,0.13);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .25s ease;
+  z-index: 201;
+}
+.overlay.open .drawer { transform: translateX(0); }
+
+.drawer-head {
+  padding: 18px 20px;
+  border-bottom: 1.5px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.drawer-head h3 { font-size: 15px; font-weight: 700; flex: 1; }
+.drawer-close {
+  background: none; border: none; font-size: 20px;
+  color: var(--text3); cursor: pointer; padding: 2px 6px;
+  border-radius: 5px; line-height: 1;
+}
+.drawer-close:hover { color: var(--text); }
+
+.drawer-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+
+.mc {
+  border: 1.5px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 12px; background: #fff;
+}
+.mc-top {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.mc-av {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; flex-shrink: 0;
+}
+.mc-name {
+  flex: 1; font-size: 14px; font-weight: 700;
+  border: none; border-bottom: 1.5px solid var(--border);
+  padding: 3px 4px; font-family: inherit; outline: none; color: var(--text);
+}
+.mc-name:focus { border-color: var(--accent); }
+.mc-pal {
+  border: 1.5px solid var(--border); border-radius: 5px;
+  padding: 3px 6px; font-size: 11px; font-family: inherit;
+  outline: none; cursor: pointer;
+}
+.mc-del {
+  background: none; border: none; color: var(--text3);
+  cursor: pointer; font-size: 17px; padding: 2px 5px;
+  border-radius: 5px; transition: color .15s; line-height: 1;
+}
+.mc-del:hover { color: var(--red); }
+
+.mc-leave {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; color: var(--text2); cursor: pointer;
+  margin-bottom: 10px;
+}
+.mc-leave input { cursor: pointer; }
+
+.mc-prods-label { font-size: 12px; color: var(--text3); font-weight: 500; margin-bottom: 6px; }
+.mc-prods-row { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+.mc-pchip {
+  display: flex; align-items: center; gap: 3px;
+  padding: 3px 9px; border-radius: 5px;
+  font-size: 11.5px; font-weight: 700;
+}
+.mc-pchip button {
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; line-height: 1; opacity: .55; padding: 0 1px;
+}
+.mc-pchip button:hover { opacity: 1; }
+.mc-add-row { display: flex; gap: 6px; }
+.mc-add-inp {
+  flex: 1; border: 1.5px solid var(--border); border-radius: 6px;
+  padding: 6px 10px; font-size: 13px; font-family: inherit; outline: none;
+}
+.mc-add-inp:focus { border-color: var(--accent); }
+.mc-add-btn {
+  padding: 6px 12px; background: var(--accent); color: #fff;
+  border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+}
+
+.drawer-foot {
+  padding: 14px 20px;
+  border-top: 1.5px solid var(--border);
+  display: flex; gap: 8px;
+}
+.drawer-add-btn {
+  flex: 1; padding: 10px;
+  border: 1.5px dashed var(--border2); border-radius: 8px;
+  background: transparent; color: var(--text3);
+  font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: all .15s;
+}
+.drawer-add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-lt); }
+.drawer-save-btn {
+  padding: 10px 22px; background: var(--accent); color: #fff;
+  border: none; border-radius: 8px; font-size: 13px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+}
+.drawer-save-btn:hover { background: #1D4ED8; }
+
+/* ─────────────────── WEEK MODAL ─────────────────── */
+.modal-bg {
+  display: none; position: fixed; inset: 0;
+  background: rgba(15,23,42,0.4); z-index: 300;
+  align-items: center; justify-content: center;
+}
+.modal-bg.open { display: flex; }
+.modal {
+  background: #fff; border-radius: 12px; padding: 26px;
+  width: 440px; max-width: 92vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+  animation: mIn .2s ease;
+}
+@keyframes mIn {
+  from { transform: translateY(14px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+.modal h3 { font-size: 15px; font-weight: 700; margin-bottom: 18px; }
+.mf { margin-bottom: 14px; }
+.mf label { font-size: 12px; font-weight: 600; color: var(--text2); display: block; margin-bottom: 5px; }
+.mf input {
+  width: 100%; border: 1.5px solid var(--border); border-radius: 7px;
+  padding: 9px 12px; font-family: inherit; font-size: 13px;
+  color: var(--text); background: #fff; outline: none; transition: border .2s;
+}
+.mf input:focus { border-color: var(--accent); }
+.m-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+.m-cancel {
+  padding: 8px 18px; border-radius: 7px; border: 1.5px solid var(--border);
+  background: #fff; color: var(--text2); cursor: pointer; font-family: inherit; font-size: 13px;
+}
+.m-ok {
+  padding: 8px 22px; border-radius: 7px; background: var(--accent); color: #fff;
+  border: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700;
+}
+.m-ok:hover { background: #1D4ED8; }
+
+/* 탭 삭제 버튼 — week-tab 바깥의 독립 버튼 */
+.week-tab-wrap {
+  display: flex; align-items: flex-end;
+  position: relative; bottom: -1.5px;
+}
+.week-tab-wrap:hover .week-tab-del,
+.week-tab-wrap:has(.week-tab.active) .week-tab-del { opacity: 1; pointer-events: auto; }
+.week-tab-del {
+  opacity: 0; pointer-events: none;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(220,38,38,0.12);
+  border: none; color: var(--red);
+  font-size: 12px; font-weight: 700; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all .15s;
+  margin-left: -10px; margin-bottom: 10px; z-index: 2;
+  position: relative;
+}
+.week-tab-del:hover { background: var(--red); color: #fff; opacity: 1; }
+/* week-tab 자체 bottom 제거 (wrap이 담당) */
+.week-tab-wrap .week-tab { bottom: 0; }
+
+/* 삭제 확인 모달 */
+.del-modal-bg {
+  display: none; position: fixed; inset: 0;
+  background: rgba(15,23,42,0.45); z-index: 400;
+  align-items: center; justify-content: center;
+}
+.del-modal-bg.open { display: flex; }
+.del-modal {
+  background: #fff; border-radius: 12px; padding: 26px 28px;
+  width: 360px; max-width: 92vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  animation: mIn .18s ease;
+  text-align: center;
+}
+.del-modal-icon { font-size: 36px; margin-bottom: 12px; }
+.del-modal h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.del-modal p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 22px; }
+.del-modal p strong { color: var(--text); }
+.del-actions { display: flex; gap: 10px; justify-content: center; }
+.del-cancel {
+  padding: 9px 22px; border-radius: 8px;
+  border: 1.5px solid var(--border); background: #fff;
+  color: var(--text2); cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600;
+}
+.del-cancel:hover { border-color: var(--border2); }
+.del-confirm {
+  padding: 9px 22px; border-radius: 8px;
+  background: var(--red); color: #fff;
+  border: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700;
+}
+.del-confirm:hover { background: #B91C1C; }
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: #1E293B; color: #fff;
+  border-radius: 8px; padding: 12px 18px;
+  font-size: 13px; font-weight: 500;
+  opacity: 0; transform: translateY(10px);
+  transition: all .25s; pointer-events: none; z-index: 500;
+}
+.toast.show { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+
+<!-- Firebase 설정 화면 (최초 1회) -->
+<div id="fb-setup" style="display:none">
+  <div class="fb-box">
+    <h2>🔥 Firebase 연결 설정</h2>
+    <p class="fb-sub">아래 3단계를 따라하면 <strong>팀원 전원이 같은 링크에서 실시간 편집</strong>할 수 있어요.<br>최초 1회만 설정하면 이후엔 자동으로 연결됩니다.</p>
+    <div class="fb-step">
+      <strong>① Firebase 프로젝트 만들기</strong><br>
+      <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → 프로젝트 추가 → 이름 입력 → 계속<br><br>
+      <strong>② Realtime Database 생성</strong><br>
+      좌측 메뉴 → Realtime Database → 데이터베이스 만들기 → 테스트 모드 선택 → 완료<br><br>
+      <strong>③ 규칙(Rules) 설정</strong><br>
+      Rules 탭 클릭 → 아래 내용으로 교체 후 게시:<br>
+      <code>{ "rules": { ".read": true, ".write": true } }</code><br><br>
+      <strong>④ Database URL 복사</strong><br>
+      데이터 탭 상단 URL (예: <code>https://my-app-default-rtdb.firebaseio.com</code>)
+    </div>
+    <label class="fb-label">Firebase Database URL</label>
+    <input id="fb-url-inp" class="fb-inp" type="url" placeholder="https://your-app-default-rtdb.firebaseio.com">
+    <button class="fb-ok" onclick="doFbSetup()">🔗 연결하기</button>
+    <p class="fb-note">입력한 URL은 이 브라우저에만 저장됩니다. 팀원들도 같은 URL을 입력하면 동일한 데이터를 공유할 수 있어요.</p>
+  </div>
+</div>
+
+<!-- 로딩 화면 -->
+<div id="fb-loading">
+  <div style="font-size:38px">📋</div>
+  <div class="fb-spin"></div>
+  <p style="font-size:14px;color:#8A97A8">회의록 불러오는 중...</p>
+</div>
+
+<!-- 상단 동기화 바 -->
+<div id="sync-bar"></div>
+
+<!-- NAV -->
+<nav class="topnav">
+  <div class="nav-logo">📋 <span>주간</span>회의록</div>
+  <div class="week-tabs" id="weekTabs"></div>
+  <button class="nav-add-btn" onclick="openWeekModal()">＋ 새 주차</button>
+  <div class="nav-right">
+    <div class="save-status"><div class="save-dot"></div><span id="saveLbl">저장됨</span></div>
+    <button class="nav-btn nav-btn-blue" onclick="openDrawer()">👥 작성자 관리</button>
+    <button class="nav-btn" onclick="doExport()">내보내기</button>
+  </div>
+</nav>
+
+<!-- SHEET -->
+<div class="sheet-wrapper">
+
+  <!-- 이슈 배너 -->
+  <div class="issue-banner" id="issueBanner" style="display:none">
+    <div class="issue-banner-head">
+      <span style="font-size:15px">🚨</span>
+      <span class="issue-banner-title">미해결 이슈</span>
+      <span class="issue-cnt-badge" id="issueCnt"></span>
+      <span style="font-size:12px;color:var(--text3);margin-left:4px">— 오늘 회의 중 확인 필요</span>
+    </div>
+    <div class="issue-items" id="issueItems"></div>
+  </div>
+
+  <!-- 메타 -->
+  <div class="sheet-meta">
+    <div class="meta-chip"><label>📅 회의일</label><input type="date" id="mDate" onchange="saveMeta()"></div>
+    <div class="meta-chip" style="background:#EFF6FF;border-color:#BFDBFE"><label style="color:#1E40AF">🗓️</label><span id="mWeekDisplay" style="font-size:13px;color:#1E40AF;font-weight:600;white-space:nowrap"></span></div>
+    <div class="meta-chip"><label>👥 참석</label><input type="text" id="mAttend" placeholder="참석자..." style="width:240px" onchange="saveMeta()"></div>
+    <div class="meta-chip meta-notice"><label>📢</label><textarea id="mNotice" class="meta-notice-ta" rows="1" placeholder="공지사항 입력..." oninput="growNotice(this)" onchange="saveMeta()"></textarea></div>
+  </div>
+
+  <!-- 테이블 -->
+  <table class="sheet-table">
+    <colgroup>
+      <col class="c-prod"><col class="c-name">
+      <col class="c-wip"><col class="c-done"><col class="c-issue">
+      <col class="c-next">
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="th-prod">담당 제품</th>
+        <th class="th-name">담당자</th>
+        <th class="th-wip">🔄 이번 주 진행 중</th>
+        <th class="th-done">✅ 완료된 내용</th>
+        <th class="th-issue">⚠️ 이슈 / 확인 사항 <span style="font-weight:400;font-size:10px;opacity:.7">(이슈별 상태 개별 선택)</span></th>
+        <th class="th-next">📌 다음 주 예정</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<!-- 작성자 관리 드로워 -->
+<div class="overlay" id="overlay" onclick="overlayClick(event)">
+  <div class="drawer">
+    <div class="drawer-head">
+      <h3>👥 작성자 관리</h3>
+      <button class="drawer-close" onclick="closeDrawer()">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+    <div class="drawer-foot">
+      <button class="drawer-add-btn" onclick="addMember()">＋ 작성자 추가</button>
+      <button class="drawer-save-btn" onclick="saveMembers()">저장하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 새 주차 모달 -->
+<div class="modal-bg" id="weekModal" onclick="if(event.target===this)closeWeekModal()">
+  <div class="modal">
+    <h3>＋ 새 주차 추가</h3>
+    <div class="mf"><label>회의 일자 (수요일 자동 설정)</label><input type="date" id="nDate" oninput="document.getElementById('nWeekPreview').textContent=fmtWeekLabel(this.value)"></div>
+    <div class="mf"><label>주차</label><div style="padding:9px 12px;background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:7px;font-size:13px;font-weight:600;color:#1E40AF"><span id="nWeekPreview"></span><span style="font-size:11px;color:#94A3B8;margin-left:6px">자동 계산됨</span></div></div>
+    <div class="mf"><label>참석자</label><input type="text" id="nAttend" placeholder="이름, 이름..."></div>
+    <div class="m-actions">
+      <button class="m-cancel" onclick="closeWeekModal()">취소</button>
+      <button class="m-ok" onclick="confirmWeek()">추가하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 주차 삭제 확인 모달 -->
+<div class="del-modal-bg" id="delModal" onclick="if(event.target===this)closeDelModal()">
+  <div class="del-modal">
+    <div class="del-modal-icon">🗑️</div>
+    <h3>주차 회의록 삭제</h3>
+    <p id="delModalMsg">이 주차를 삭제하면 모든 내용이 사라집니다.<br>정말 삭제하시겠어요?</p>
+    <div class="del-actions">
+      <button class="del-cancel" onclick="closeDelModal()">취소</button>
+      <button class="del-confirm" onclick="confirmDelWeek()">삭제하기</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════
+   Firebase 초기화 & 연결 관리
+══════════════════════════════════════════════ */
+const FB_LS_KEY = 'weekly_fb_url';
+let _db = null, _ref = null, _saveTimer = null;
+
+function getFbUrl(){ return localStorage.getItem(FB_LS_KEY)||''; }
+function setFbUrl(u){ localStorage.setItem(FB_LS_KEY, u); }
+
+function initFb(url){
+  try{
+    const app = firebase.apps.length
+      ? firebase.apps[0]
+      : firebase.initializeApp({ databaseURL: url });
+    _db  = firebase.database(app);
+    _ref = _db.ref('weekly_data');
+    return true;
+  }catch(e){ console.error('Firebase init error', e); return false; }
+}
+
+function doFbSetup(){
+  const url = document.getElementById('fb-url-inp').value.trim();
+  if(!url || !url.startsWith('https://')){
+    alert('올바른 Firebase Database URL을 입력해주세요.\n예: https://your-app-default-rtdb.firebaseio.com');
+    return;
+  }
+  if(!initFb(url)){ alert('Firebase 연결에 실패했습니다. URL을 확인해주세요.'); return; }
+  setFbUrl(url);
+  document.getElementById('fb-setup').style.display = 'none';
+  startRealtimeListener();
+}
+
+/* ── 날짜 기준 최신 주차 ID 반환 ── */
+function latestWeekId(weeks){
+  return Object.values(weeks)
+    .sort((a,b) => (b.date||'').localeCompare(a.date||''))
+    [0]?.id || Object.keys(weeks)[0];
+}
+
+/* ── 실시간 리스너 시작 ── */
+let _firstLoad = true;
+function startRealtimeListener(){
+  setSaveDot('saving');
+  showSyncBar();
+  _ref.on('value', snap => {
+    const val = snap.val();
+    if(val){
+      const prevCur = D.cur;
+      D = val;
+      if(_firstLoad){
+        // 최초 로드 시 → 항상 최신 주차로
+        D.cur = latestWeekId(D.weeks);
+        _firstLoad = false;
+      } else if(D.weeks[prevCur]){
+        // 이미 보던 탭이 있으면 유지
+        D.cur = prevCur;
+      } else {
+        // 보던 탭이 삭제됐으면 최신 주차로
+        D.cur = latestWeekId(D.weeks);
+      }
+    }
+    hideSyncBar();
+    document.getElementById('fb-loading').style.display = 'none';
+    document.querySelector('.topnav').style.display = '';
+    document.querySelector('.sheet-wrapper').style.display = '';
+    renderAll();
+    setSaveDot('saved');
+    setSaveLbl('저장됨 ' + new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'}));
+  }, err => {
+    console.error('Firebase read error', err);
+    hideSyncBar();
+    document.getElementById('fb-loading').style.display = 'none';
+    document.querySelector('.topnav').style.display = '';
+    document.querySelector('.sheet-wrapper').style.display = '';
+    renderAll();
+    setSaveDot('err'); setSaveLbl('연결 오류');
+    toast('⚠️ Firebase 연결 실패 — 로컬 모드로 동작 중');
+  });
+}
+
+/* ── persist → Firebase 저장 (디바운스 600ms) ── */
+function persist(){
+  setSaveDot('saving'); setSaveLbl('저장 중...');
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async ()=>{
+    if(_ref){
+      showSyncBar();
+      // cur는 각자 로컬 탭이므로 Firebase엔 저장하지 않음
+      const {cur, ...dataToSave} = D;
+      dataToSave.cur = D.cur; // 구조는 유지하되 실제로는 저장 (다른 기기 초기값용)
+      try{
+        await _ref.set(D);
+        hideSyncBar();
+        setSaveDot('saved');
+        setSaveLbl('저장됨 ' + new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'}));
+      }catch(e){
+        hideSyncBar();
+        setSaveDot('err'); setSaveLbl('저장 실패');
+        console.error('Firebase write error', e);
+        toast('⚠️ 저장 실패 — 네트워크를 확인해주세요');
+      }
+    } else {
+      // 폴백: localStorage
+      localStorage.setItem('wkly_v4', JSON.stringify(D));
+      setSaveDot('saved');
+      setSaveLbl('저장됨 (로컬) ' + new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'}));
+    }
+  }, 600);
+}
+
+function setSaveDot(state){
+  const dot = document.querySelector('.save-dot');
+  if(!dot) return;
+  dot.className = 'save-dot' + (state==='saving'?' saving': state==='err'?' err':'');
+}
+function setSaveLbl(txt){ const el=document.getElementById('saveLbl'); if(el) el.textContent=txt; }
+function showSyncBar(){ const b=document.getElementById('sync-bar'); if(b){b.style.width='70%';b.style.transition='width .4s';} }
+function hideSyncBar(){ const b=document.getElementById('sync-bar'); if(b){b.style.width='100%';setTimeout(()=>{b.style.transition='none';b.style.width='0';},300);} }
+
+/* ── 앱 부트스트랩은 Firebase SDK 로드 후 별도 스크립트에서 실행 ── */
+
+/* ══════════════════════════════════════════════
+   데이터 & 팔레트
+══════════════════════════════════════════════ */
+/* ── 팔레트 ──────────────────────────────────────── */
+const PAL = [
+  {bg:'#DBEAFE',fc:'#1E40AF',ab:'#EFF6FF',af:'#1E40AF'},
+  {bg:'#DCFCE7',fc:'#15803D',ab:'#F0FDF4',af:'#15803D'},
+  {bg:'#FEF3C7',fc:'#92400E',ab:'#FFFBEB',af:'#92400E'},
+  {bg:'#EDE9FE',fc:'#5B21B6',ab:'#F5F3FF',af:'#5B21B6'},
+  {bg:'#FCE7F3',fc:'#9D174D',ab:'#FDF2F8',af:'#9D174D'},
+  {bg:'#CCFBF1',fc:'#0F766E',ab:'#F0FDFA',af:'#0F766E'},
+  {bg:'#FEE2E2',fc:'#B91C1C',ab:'#FEF2F2',af:'#B91C1C'},
+];
+const STATS = [
+  {v:'none',  l:'—',          c:'s-none'},
+  {v:'done',  l:'✅ 완료',    c:'s-done'},
+  {v:'wip',   l:'🔄 처리중',  c:'s-wip'},
+  {v:'check', l:'⏳ 확인필요',c:'s-check'},
+  {v:'urgent',l:'🚨 긴급',    c:'s-urgent'},
+];
+const SBADGE = {
+  wip:   'background:#DBEAFE;color:#1E40AF',
+  check: 'background:#FEF3C7;color:#92400E',
+  urgent:'background:#FEE2E2;color:#991B1B',
+  done:  'background:#DCFCE7;color:#166534',
+  none:  'background:#F1F5F9;color:#64748B',
+};
+const SLABEL = {wip:'🔄 처리중',check:'⏳ 확인필요',urgent:'🚨 긴급',done:'✅ 완료',none:'—'};
+
+/* ── 데이터 초기값 ────────────────────────────────── */
+let D = {
+  cur:'w01',
+  members:[
+    {name:'김지영',products:['AI이음','토모링','TAS','플레이딩동'],onLeave:false,pal:0},
+    {name:'서경욱',products:['키즐','한글이야호','AI이음'],onLeave:false,pal:1},
+    {name:'이다혜',products:['키즐운영','AI이음'],onLeave:false,pal:2},
+    {name:'김다현',products:['AI이음','플레이딩동','토모링'],onLeave:false,pal:3},
+    {name:'이한나',products:['키즐','토모노트WEB'],onLeave:true,pal:6},
+  ],
+  weeks:{
+    w01:{
+      id:'w01',date:'2026-02-11',weekLabel:'26년 2월 1주차',
+      attendees:'김지영, 서경욱, 이다혜, 김다현 (이한나 육아휴직)',
+      notice:'토모링 KT Object Storage Classic (4.0) 서비스 2026년 6월 1일부로 종료(EOS) 예정',
+      rows:{
+        '김지영':{wip:'• [AI이음] 잔여 스케줄 관리\n  - 리포트 프리징 적용 일정 확인\n  - AI캐릭터 적용 일정 확인\n• TAS 사용통계 기획 (2/23 전달 예정)\n• [플레이딩동] 앱 QA 대기 중',done:'• [AI이음] 정식 서비스 오픈 (2/10, 16:40 적용)',issues:[{text:'기초/다중에서 동점 시 우선순위 로직 이슈 → 해결 완료, 리포트 재검수 필요',status:'wip'}],next:''},
+        '서경욱':{wip:'• [키즐] 설치: 프로모션 11건 완료, 일시납 2건 완료\n• [AI이음] 웹페이지 대응 중',done:'',issues:[{text:'현대IT 전자칠판 검증 → 금일 추가 진행 예정',status:'wip'}],next:''},
+        '이다혜':{wip:'• [AI이음] 캐릭터 생성 검수 진행\n• 결과 리포트 검수 진행',done:'• [키즐] 사진 저장 기능 기획안 공유 (2/9)',issues:[{text:'다중지능 종합 프로파일 확인 필요',status:'check'}],next:''},
+        '김다현':{wip:'• [AI이음] FAQ·공지사항 업데이트\n• 웹·리포트 QA 진행 중',done:'• [AI이음] 리포트 수정 CSS 전달\n• 각 검사 이용가이드 업데이트',issues:[{text:'',status:'none'}],next:''},
+        '이한나':{wip:'육아휴직 중',done:'',issues:[{text:'',status:'none'}],next:''},
+      }
+    }
+  }
+};
+
+const cw = () => D.weeks[D.cur];
+
+
+/* ── 주차 라벨 포맷: 25년 2월 1주차 ─────────────────────── */
+function fmtWeekLabel(dateStr){
+  if(!dateStr) return '';
+  const d = new Date(dateStr);
+  if(isNaN(d)) return dateStr;
+  const yy = String(d.getFullYear()).slice(2);
+  const mm = d.getMonth()+1;
+  // 해당 월의 첫 수요일 기준 주차 계산
+  const day = d.getDate();
+  const weekNum = Math.ceil(day / 7);
+  return `${yy}년 ${mm}월 ${weekNum}주차`;
+}
+
+/* ── 탭 ──────────────────────────────────────────── */
+function renderTabs(){
+  const weekList = Object.values(D.weeks);
+  // 날짜 오름차순 정렬
+  weekList.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  document.getElementById('weekTabs').innerHTML =
+    weekList.map(w=>{
+      const n = Object.values(w.rows||{}).reduce((cnt,r)=>{
+        const issues = normalizeIssues(r.issues);
+        return cnt + issues.filter(i=>i.text&&i.text.trim()&&i.status!=='done'&&i.status!=='none').length;
+      },0);
+      const canDelete = weekList.length > 1;
+      const label = fmtWeekLabel(w.date);
+      const delBtn = canDelete
+        ? `<button class="week-tab-del" onclick="openDelModal(event,'${w.id}')" title="이 주차 삭제">×</button>`
+        : '';
+      return `<div class="week-tab-wrap">
+        <button class="week-tab ${w.id===D.cur?'active':''}" onclick="switchWeek('${w.id}')">
+          ${x(label||w.id)}
+          ${n?`<span class="issue-dot">${n}</span>`:''}
+        </button>
+        ${delBtn}
+      </div>`;
+    }).join('');
+}
+function switchWeek(id){ D.cur=id; persist(); renderAll(); }
+
+/* ── 메타 ────────────────────────────────────────── */
+function renderMeta(){
+  const w=cw();
+  document.getElementById('mDate').value   = w.date||'';
+  // 주차 라벨은 날짜로 자동 계산
+  const disp = document.getElementById('mWeekDisplay');
+  if(disp) disp.textContent = fmtWeekLabel(w.date)||'';
+  document.getElementById('mAttend').value = w.attendees||'';
+  const ta = document.getElementById('mNotice');
+  ta.value = w.notice||'';
+  requestAnimationFrame(()=>growNotice(ta));
+}
+function saveMeta(){
+  const w=cw();
+  w.date      = document.getElementById('mDate').value;
+  w.weekLabel = fmtWeekLabel(w.date); // 자동 계산
+  w.attendees = document.getElementById('mAttend').value;
+  w.notice    = document.getElementById('mNotice').value;
+  persist(); renderTabs();
+  // 날짜 바뀌면 주차 표시도 갱신
+  const disp = document.getElementById('mWeekDisplay');
+  if(disp) disp.textContent = w.weekLabel||'';
+}
+/* 공지 textarea 자동 높이 */
+function growNotice(el){
+  el.style.height = '0';
+  el.style.height = Math.max(el.scrollHeight, 22) + 'px';
+}
+
+/* ── 주차 삭제 ──────────────────────────────────── */
+let _pendingDelId = null;
+function openDelModal(e, id){
+  e.stopPropagation(); // 탭 클릭 이벤트 차단
+  _pendingDelId = id;
+  const w = D.weeks[id];
+  document.getElementById('delModalMsg').innerHTML =
+    `<strong>"${x(w.weekLabel||id)} · ${w.date||''}"</strong> 주차를 삭제하면<br>모든 회의 내용이 사라집니다. 정말 삭제하시겠어요?`;
+  document.getElementById('delModal').classList.add('open');
+}
+function closeDelModal(){
+  document.getElementById('delModal').classList.remove('open');
+  _pendingDelId = null;
+}
+function confirmDelWeek(){
+  if(!_pendingDelId) return;
+  const id = _pendingDelId;
+  delete D.weeks[id];
+  // 삭제 후 현재 주차 재설정 (남은 것 중 마지막)
+  const remaining = Object.keys(D.weeks);
+  D.cur = remaining[remaining.length - 1];
+  closeDelModal();
+  persist();
+  renderAll();
+  toast('🗑️ 주차 회의록이 삭제되었습니다');
+}
+
+/* ── 이슈 배너 ───────────────────────────────────── */
+function normalizeIssues(issues){
+  if(!issues) return [{text:'',status:'none'}];
+  if(typeof issues==='string') return [{text:issues,status:'none'}];
+  if(Array.isArray(issues)&&issues.length>0) return issues;
+  return [{text:'',status:'none'}];
+}
+function newIssue(){ return {text:'',status:'none'}; }
+
+function renderBanner(){
+  const w=cw();
+  const flat=[];
+  D.members.forEach(m=>{
+    const r=(w.rows||{})[m.name]||{};
+    normalizeIssues(r.issues).forEach(iss=>{
+      if(iss.text&&iss.text.trim()&&iss.status!=='done'&&iss.status!=='none')
+        flat.push({m,text:iss.text,status:iss.status});
+    });
+  });
+  const banner=document.getElementById('issueBanner');
+  if(!flat.length){banner.style.display='none';return;}
+  banner.style.display='block';
+  document.getElementById('issueCnt').textContent=flat.length;
+  document.getElementById('issueItems').innerHTML=flat.map(({m,text,status})=>
+    `<div class="issue-item">
+      <div class="issue-dot2"></div>
+      <div style="flex:1">
+        <div class="issue-content">${x(text.split('\n')[0])}</div>
+        <div class="issue-meta">${m.name}</div>
+      </div>
+      <span class="issue-sbadge" style="${SBADGE[status]||''}">${SLABEL[status]||'—'}</span>
+    </div>`
+  ).join('');
+}
+
+/* ── 테이블 ──────────────────────────────────────── */
+function renderIssueList(memberName, issues, isLeave){
+  const mn = x(memberName);
+  const rows = issues.map((iss,ii)=>{
+    const sc = STATS.find(s=>s.v===iss.status)||STATS[0];
+    const sopts = STATS.map(s=>
+      `<option value="${s.v}" ${iss.status===s.v?'selected':''}>${s.l}</option>`
+    ).join('');
+    return `<div class="issue-row-item" data-ii="${ii}">
+      <span class="issue-row-num">${ii+1}</span>
+      <textarea class="issue-row-ta"
+        placeholder="이슈 내용 입력..."
+        oninput="growIssueTa(this)" onchange="updIssue('${mn}',${ii},'text',this.value)"
+        ${isLeave?'disabled':''}>${x(iss.text)}</textarea>
+      <div class="issue-row-right">
+        <select class="issue-row-sel ${sc.c}"
+          onchange="updIssue('${mn}',${ii},'status',this.value);styleIssueSelect(this)"
+          ${isLeave?'disabled':''}>
+          ${sopts}
+        </select>
+        ${issues.length>1&&!isLeave?`<button class="issue-row-del" onclick="removeIssue('${mn}',${ii})" title="이슈 삭제">×</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  const addBtn = isLeave ? '' :
+    `<button class="issue-add-btn" onclick="addIssue('${mn}')">＋ 이슈 추가</button>`;
+  return `<div class="issue-list-wrap" id="iw-${mn}">${rows}${addBtn}</div>`;
+}
+
+function renderTable(){
+  const w=cw();
+  document.getElementById('tbody').innerHTML = D.members.map((m,mi)=>{
+    const p=PAL[m.pal%PAL.length];
+    const r=(w.rows&&w.rows[m.name])||{wip:'',done:'',next:''};
+    const issues = normalizeIssues(r.issues);
+    const ptags=(m.products||[]).map(pn=>
+      `<span class="ptag" style="background:${p.bg};color:${p.fc}">${pn}</span>`
+    ).join('');
+    return `<tr class="${m.onLeave?'leave-row':''}" data-mi="${mi}">
+      <td class="td-prod"><div class="ptags">${ptags}</div></td>
+      <td class="td-name">
+        <div class="name-av" style="background:${p.ab};color:${p.af}">${m.name[0]||'?'}</div>
+        <span class="name-txt">${x(m.name)}</span>
+        ${m.onLeave?'<span class="name-leave">부재 중</span>':''}
+      </td>
+      <td class="td-cell td-wip">
+        <textarea class="td-ta" data-n="${x(m.name)}" data-f="wip"
+          placeholder="진행 중인 업무..."
+          oninput="grow(this)" onchange="upd(this)"
+          ${m.onLeave?'disabled':''}>${x(r.wip)}</textarea>
+      </td>
+      <td class="td-cell td-done">
+        <textarea class="td-ta" data-n="${x(m.name)}" data-f="done"
+          placeholder="완료된 항목..."
+          oninput="grow(this)" onchange="upd(this)"
+          ${m.onLeave?'disabled':''}>${x(r.done)}</textarea>
+      </td>
+      <td class="td-issue">
+        ${renderIssueList(m.name, issues, m.onLeave)}
+      </td>
+      <td class="td-cell td-next">
+        <textarea class="td-ta" data-n="${x(m.name)}" data-f="next"
+          placeholder="다음 주 예정..."
+          oninput="grow(this)" onchange="upd(this)"
+          ${m.onLeave?'disabled':''}>${x(r.next)}</textarea>
+      </td>
+    </tr>`;
+  }).join('');
+
+  /* 초기 높이 세팅 */
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.td-ta').forEach(el=>grow(el,false));
+    document.querySelectorAll('.issue-row-ta').forEach(el=>growIssueTa(el));
+    syncRowHeights();
+  });
+}
+
+/* overflow:hidden 에서 정확한 auto-grow */
+function grow(el, sync=true){
+  el.style.height = '0';
+  const min = parseInt(getComputedStyle(document.documentElement)
+    .getPropertyValue('--cell-min')) || 130;
+  el.style.height = Math.max(el.scrollHeight, min) + 'px';
+  if(sync) syncRowHeights(el.closest('tr'));
+}
+
+/* 같은 행의 textarea들 + issue-list-wrap 중 최대 높이로 맞춤 */
+function syncRowHeights(tr){
+  const rows = tr ? [tr] : document.querySelectorAll('#tbody tr');
+  rows.forEach(row=>{
+    const tas = row.querySelectorAll('.td-ta');
+    const issueWrap = row.querySelector('.issue-list-wrap');
+    let maxH = 0;
+    tas.forEach(t=>{ maxH = Math.max(maxH, parseInt(t.style.height)||0); });
+    if(issueWrap) maxH = Math.max(maxH, issueWrap.scrollHeight||0);
+    tas.forEach(t=>{ if(parseInt(t.style.height)<maxH) t.style.height=maxH+'px'; });
+    if(issueWrap) issueWrap.style.minHeight=maxH+'px';
+  });
+}
+
+function upd(el){
+  const w=cw(), name=el.dataset.n, field=el.dataset.f;
+  if(!w.rows) w.rows={};
+  if(!w.rows[name]) w.rows[name]={wip:'',done:'',next:'',issues:[newIssue()]};
+  w.rows[name][field]=el.value;
+  persist(); renderTabs(); renderBanner();
+}
+function styleSelect(sel){
+  const sc=STATS.find(s=>s.v===sel.value)||STATS[0];
+  sel.className='status-sel '+sc.c;
+}
+
+/* ── 이슈 리스트 조작 ─────────────────────────────── */
+function getRow(memberName){
+  const w=cw();
+  if(!w.rows) w.rows={};
+  if(!w.rows[memberName]) w.rows[memberName]={wip:'',done:'',next:'',issues:[newIssue()]};
+  if(!Array.isArray(w.rows[memberName].issues))
+    w.rows[memberName].issues = normalizeIssues(w.rows[memberName].issues);
+  return w.rows[memberName];
+}
+
+function updIssue(memberName, ii, field, value){
+  const r = getRow(memberName);
+  r.issues[ii][field] = value;
+  persist(); renderTabs(); renderBanner();
+}
+
+function addIssue(memberName){
+  const r = getRow(memberName);
+  r.issues.push(newIssue());
+  persist();
+  // 해당 셀만 다시 렌더 (전체 re-render 없이)
+  refreshIssueCell(memberName);
+}
+
+function removeIssue(memberName, ii){
+  const r = getRow(memberName);
+  if(r.issues.length<=1){ r.issues[0]={text:'',status:'none'}; }
+  else { r.issues.splice(ii,1); }
+  persist(); renderTabs(); renderBanner();
+  refreshIssueCell(memberName);
+}
+
+function refreshIssueCell(memberName){
+  const r = getRow(memberName);
+  const issues = normalizeIssues(r.issues);
+  const m = D.members.find(m=>m.name===memberName)||{onLeave:false};
+  const wrap = document.getElementById('iw-'+x(memberName));
+  if(!wrap) return;
+  const td = wrap.closest('td');
+  td.innerHTML = renderIssueList(memberName, issues, m.onLeave);
+  // 값은 innerHTML로 들어갔으므로 textarea 값 재설정
+  td.querySelectorAll('.issue-row-ta').forEach((ta,ii)=>{
+    ta.value = (issues[ii]||{}).text||'';
+    growIssueTa(ta);
+  });
+  syncRowHeights(td.closest('tr'));
+}
+
+function growIssueTa(el){
+  el.style.height='0';
+  el.style.height=Math.max(el.scrollHeight,22)+'px';
+  syncRowHeights(el.closest('tr'));
+}
+
+function styleIssueSelect(sel){
+  const sc=STATS.find(s=>s.v===sel.value)||STATS[0];
+  sel.className='issue-row-sel '+sc.c;
+}
+
+/* ── 작성자 드로워 ────────────────────────────────── */
+function openDrawer(){
+  renderDrawer();
+  document.getElementById('overlay').classList.add('open');
+}
+function closeDrawer(){ document.getElementById('overlay').classList.remove('open'); }
+function overlayClick(e){ if(e.target===document.getElementById('overlay')) closeDrawer(); }
+
+function renderDrawer(){
+  document.getElementById('drawerBody').innerHTML = D.members.map((m,mi)=>{
+    const p=PAL[m.pal%PAL.length];
+    const chips=(m.products||[]).map((pn,pi)=>
+      `<span class="mc-pchip" style="background:${p.bg};color:${p.fc}">
+        ${pn}<button onclick="rmProd(${mi},${pi})" title="삭제">×</button>
+      </span>`
+    ).join('');
+    const palOpts=PAL.map((pp,pi)=>
+      `<option value="${pi}" ${m.pal===pi?'selected':''} style="background:${pp.bg}">색상${pi+1}</option>`
+    ).join('');
+    return `<div class="mc">
+      <div class="mc-top">
+        <div class="mc-av" style="background:${p.ab};color:${p.af}">${(m.name||'?')[0]}</div>
+        <input class="mc-name" value="${x(m.name)}"
+          oninput="D.members[${mi}].name=this.value" placeholder="이름">
+        <select class="mc-pal" onchange="D.members[${mi}].pal=+this.value;renderDrawer()">${palOpts}</select>
+        <button class="mc-del" onclick="delMember(${mi})">🗑</button>
+      </div>
+      <label class="mc-leave">
+        <input type="checkbox" ${m.onLeave?'checked':''}
+          onchange="D.members[${mi}].onLeave=this.checked">
+        부재 중 (육아휴직 등)
+      </label>
+      <div class="mc-prods-label">담당 제품</div>
+      <div class="mc-prods-row">${chips}</div>
+      <div class="mc-add-row">
+        <input class="mc-add-inp" id="pi${mi}" placeholder="제품명 입력"
+          onkeydown="if(event.key==='Enter'){addProd(${mi});event.preventDefault()}">
+        <button class="mc-add-btn" onclick="addProd(${mi})">추가</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addMember(){
+  D.members.push({name:'새 작성자',products:[],onLeave:false,pal:D.members.length%PAL.length});
+  renderDrawer();
+}
+function delMember(mi){
+  if(!confirm(`"${D.members[mi].name}"을(를) 삭제할까요?`)) return;
+  D.members.splice(mi,1); renderDrawer();
+}
+function rmProd(mi,pi){ D.members[mi].products.splice(pi,1); renderDrawer(); }
+function addProd(mi){
+  const inp=document.getElementById(`pi${mi}`);
+  const v=inp.value.trim(); if(!v) return;
+  D.members[mi].products.push(v); inp.value=''; renderDrawer();
+}
+function saveMembers(){
+  /* input blur 없이 저장해도 반영 */
+  document.querySelectorAll('.mc-name').forEach((inp,i)=>{
+    if(D.members[i]) D.members[i].name=inp.value;
+  });
+  persist(); closeDrawer(); renderAll();
+  toast('👥 작성자 정보가 저장되었습니다');
+}
+
+/* ── 새 주차 ─────────────────────────────────────── */
+/* 이번 주 수요일 날짜 계산 */
+function getThisWednesday(){
+  const d = new Date();
+  const day = d.getDay(); // 0=일,1=월,...,3=수
+  const diff = (3 - day + 7) % 7; // 이번 주 수요일까지 남은 일수 (이미 지났으면 다음 주)
+  // 오늘이 수요일이거나 아직 수요일 전이면 이번 주 수요일, 지났으면 다음 주 수요일
+  const wed = new Date(d);
+  if(day > 3) wed.setDate(d.getDate() + (7 - day + 3));
+  else wed.setDate(d.getDate() + diff);
+  return wed.toISOString().slice(0,10);
+}
+
+function openWeekModal(){
+  const wedDate = getThisWednesday();
+  document.getElementById('nDate').value   = wedDate;
+  document.getElementById('nWeekPreview').textContent = fmtWeekLabel(wedDate);
+  document.getElementById('nAttend').value = D.members.filter(m=>!m.onLeave).map(m=>m.name).join(', ');
+  document.getElementById('weekModal').classList.add('open');
+}
+function closeWeekModal(){ document.getElementById('weekModal').classList.remove('open'); }
+function confirmWeek(){
+  const date   = document.getElementById('nDate').value;
+  const label  = fmtWeekLabel(date);
+  const attend = document.getElementById('nAttend').value;
+  const keys   = Object.keys(D.weeks);
+  const nums   = keys.map(k=>parseInt(k.replace('w',''))).filter(n=>!isNaN(n));
+  const next   = Math.max(...nums,0)+1;
+  const id     = 'w'+String(next).padStart(2,'0');
+  D.weeks[id]  = {
+    id, date, weekLabel:label, attendees:attend, notice:'',
+    rows: Object.fromEntries(D.members.map(m=>[m.name,{wip:'',done:'',next:'',issues:[{text:'',status:'none'}]}]))
+  };
+  D.cur=id; persist(); closeWeekModal(); renderAll();
+  toast('✨ 새 주차가 추가되었습니다');
+}
+
+/* ── 내보내기 ─────────────────────────────────────── */
+function doExport(){
+  const w=cw();
+  let t=`📋 주간 회의록 — ${w.weekLabel||''}\n📅 ${w.date||''} · 참석: ${w.attendees||''}\n`;
+  if(w.notice) t+=`📢 공지: ${w.notice}\n`;
+  t+='\n'+'─'.repeat(50)+'\n';
+  D.members.forEach(m=>{
+    const r=(w.rows||{})[m.name]||{};
+    t+=`\n【 ${m.name} | ${(m.products||[]).join('·')} 】\n`;
+    if(r.wip)   t+=`▷ 진행 중:\n${r.wip}\n`;
+    if(r.done)  t+=`▷ 완료:\n${r.done}\n`;
+    const iss=normalizeIssues(r.issues).filter(i=>i.text&&i.text.trim());
+    if(iss.length) t+=`▷ 이슈:\n`+iss.map((i,n)=>`  ${n+1}. [${SLABEL[i.status]||'—'}] ${i.text}`).join('\n')+'\n';
+    if(r.next)  t+=`▷ 다음 주: ${r.next}\n`;
+  });
+  const b=new Blob([t],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download=`회의록_${w.weekLabel}_${w.date}.txt`; a.click();
+  toast('📤 내보내기 완료');
+}
+
+/* ── 유틸 ─────────────────────────────────────────── */
+/* HTML 이스케이프 — textarea value 쓸 때는 그대로, innerHTML용만 */
+function x(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2600);
+}
+
+/* ── 전체 렌더 ────────────────────────────────────── */
+function renderAll(){ renderTabs(); renderMeta(); renderBanner(); renderTable(); }
+
+/* textarea에 담긴 값은 innerHTML이 아닌 .value로 셋 → x() 쓰면 &amp; 그대로 노출되므로
+   renderTable 후 raw값 재설정 */
+function fixTextareaValues(){
+  const w=cw();
+  document.querySelectorAll('.td-ta').forEach(el=>{
+    const r=(w.rows||{})[el.dataset.n]||{};
+    el.value = r[el.dataset.f]||'';
+  });
+  // 이슈 textarea 값 재설정
+  document.querySelectorAll('.issue-row-ta').forEach(ta=>{
+    const wrap=ta.closest('.issue-list-wrap');
+    if(!wrap) return;
+    const mn=wrap.id.replace('iw-','');
+    const ii=parseInt(ta.closest('.issue-row-item').dataset.ii||0);
+    const r=(w.rows||{})[mn]||{};
+    const issues=normalizeIssues(r.issues);
+    ta.value=(issues[ii]||{}).text||'';
+  });
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.td-ta').forEach(el=>grow(el,false));
+    document.querySelectorAll('.issue-row-ta').forEach(el=>growIssueTa(el));
+    syncRowHeights();
+  });
+}
+
+/* override renderTable to fix textarea values after render */
+const _renderTable = renderTable;
+function renderAll(){
+  renderTabs(); renderMeta(); renderBanner();
+  _renderTable();
+  requestAnimationFrame(fixTextareaValues);
+}
+
+</script>
+
+<!-- Firebase SDK → 메인 스크립트 다음에 로드 후 바로 앱 시작 -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script>
+/* Firebase SDK 로드 완료 후 바로 실행 */
+(function(){
+  // NAV, SHEET 숨기기
+  document.querySelector('.topnav').style.display = 'none';
+  document.querySelector('.sheet-wrapper').style.display = 'none';
+
+  const url = getFbUrl();
+  if(url && initFb(url)){
+    startRealtimeListener();
+  } else {
+    document.getElementById('fb-loading').style.display = 'none';
+    document.getElementById('fb-setup').style.display = 'flex';
+  }
+})();
+</script>
+</body>
+</html>
