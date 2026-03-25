@@ -135,7 +135,7 @@ body {
   overflow: hidden;
 }
 .week-more-wrap:hover .week-dropdown,
-.week-more-wrap:focus-within .week-dropdown { display: block; }
+.week-more-wrap:focus-within .week-dropdown { /* 클릭으로만 제어 */ }
 .week-dropdown-item {
   display: flex; align-items: center; gap: 8px;
   padding: 9px 14px;
@@ -1163,7 +1163,10 @@ function closeMoreDropdown(){
   const dd = document.getElementById('moreDropdown');
   if(dd) dd.style.display = 'none';
 }
-document.addEventListener('click', ()=>closeMoreDropdown());
+document.addEventListener('click', (e)=>{
+  const wrap = document.getElementById('moreWrap');
+  if(wrap && !wrap.contains(e.target)) closeMoreDropdown();
+});
 
 function switchWeek(id){ D.cur=id; persistCurOnly(); renderAll(); }
 
