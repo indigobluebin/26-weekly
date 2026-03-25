@@ -1149,7 +1149,7 @@ function renderTabs(){
   const existing = document.getElementById('moreWrap');
   if(existing) existing.remove();
   if(moreHTML){
-    document.getElementById('weekTabs').insertAdjacentHTML('afterend', moreHTML);
+    document.getElementById('weekTabs').insertAdjacentHTML('beforebegin', moreHTML);
   }
 }
 
