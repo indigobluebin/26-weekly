@@ -92,11 +92,63 @@ body {
   align-self: stretch;
   padding-top: 10px;
   gap: 2px;
-  overflow-x: auto;
+  overflow-x: visible;
   flex: 1;
-  scrollbar-width: none;
 }
-.week-tabs::-webkit-scrollbar { display: none; }
+
+/* 이전 주차 드롭다운 */
+.week-more-wrap {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  align-self: stretch;
+  padding-top: 10px;
+}
+.week-more-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 12px;
+  border-radius: 6px 6px 0 0;
+  border: 1.5px solid var(--border);
+  border-bottom: none;
+  background: #F8FAFC;
+  color: var(--text3);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  font-family: inherit;
+  height: 38px;
+  position: relative; bottom: -1.5px;
+  transition: all .15s;
+}
+.week-more-btn:hover { background: var(--accent-lt); color: var(--accent); }
+.week-more-btn.has-active { color: var(--accent); background: var(--accent-lt); border-color: var(--accent); }
+.week-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% - 1.5px);
+  left: 0;
+  min-width: 160px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 0 8px 8px 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  z-index: 200;
+  overflow: hidden;
+}
+.week-more-wrap:hover .week-dropdown,
+.week-more-wrap:focus-within .week-dropdown { display: block; }
+.week-dropdown-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; color: var(--text2);
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+  font-family: inherit; background: none; border-left: none; border-right: none;
+  width: 100%; text-align: left;
+}
+.week-dropdown-item:last-child { border-bottom: none; }
+.week-dropdown-item:hover { background: var(--accent-lt); color: var(--accent); }
+.week-dropdown-item.active { background: var(--accent-lt); color: var(--accent); font-weight: 700; }
 
 .week-tab {
   display: flex; align-items: center; gap: 6px;
@@ -842,23 +894,30 @@ function latestWeekId(weeks){
 
 /* ── 실시간 리스너 시작 ── */
 let _firstLoad = true;
+let _iAmWriting = false;   // 내가 타이핑/저장 중인지 여부
+let _writeTimer = null;    // 타이핑 감지 타이머
+
 function startRealtimeListener(){
   setSaveDot('saving');
   showSyncBar();
   _ref.on('value', snap => {
     const val = snap.val();
+
+    // 내가 저장 중이거나 타이핑 중이면 리렌더 완전 차단
+    if(!_firstLoad && _iAmWriting){
+      hideSyncBar();
+      return;
+    }
+
     if(val){
       const prevCur = D.cur;
       D = val;
       if(_firstLoad){
-        // 최초 로드 시 → 항상 최신 주차로
         D.cur = latestWeekId(D.weeks);
         _firstLoad = false;
       } else if(D.weeks[prevCur]){
-        // 이미 보던 탭이 있으면 유지
         D.cur = prevCur;
       } else {
-        // 보던 탭이 삭제됐으면 최신 주차로
         D.cur = latestWeekId(D.weeks);
       }
     }
@@ -881,18 +940,31 @@ function startRealtimeListener(){
   });
 }
 
-/* ── persist → Firebase 저장 (디바운스 600ms) ── */
+/* ── persist → 셀 단위 Firebase 저장 (덮어쓰기 방지) ── */
 function persist(){
+  _iAmWriting = true;
+  clearTimeout(_writeTimer);
   setSaveDot('saving'); setSaveLbl('저장 중...');
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async ()=>{
     if(_ref){
       showSyncBar();
-      // cur는 각자 로컬 탭이므로 Firebase엔 저장하지 않음
-      const {cur, ...dataToSave} = D;
-      dataToSave.cur = D.cur; // 구조는 유지하되 실제로는 저장 (다른 기기 초기값용)
       try{
-        await _ref.set(D);
+        // 전체 덮어쓰기 대신 현재 주차 rows만 업데이트
+        const wid = D.cur;
+        const updates = {};
+        updates[`weeks/${wid}/date`]      = D.weeks[wid].date      || '';
+        updates[`weeks/${wid}/weekLabel`] = D.weeks[wid].weekLabel || '';
+        updates[`weeks/${wid}/attendees`] = D.weeks[wid].attendees || '';
+        updates[`weeks/${wid}/notice`]    = D.weeks[wid].notice    || '';
+        updates[`weeks/${wid}/id`]        = wid;
+        // rows는 멤버별로 분리 저장
+        const rows = D.weeks[wid].rows || {};
+        Object.entries(rows).forEach(([name, row])=>{
+          updates[`weeks/${wid}/rows/${encodeKey(name)}`] = row;
+        });
+        updates['members'] = D.members;
+        await _ref.update(updates);
         hideSyncBar();
         setSaveDot('saved');
         setSaveLbl('저장됨 ' + new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'}));
@@ -903,13 +975,27 @@ function persist(){
         toast('⚠️ 저장 실패 — 네트워크를 확인해주세요');
       }
     } else {
-      // 폴백: localStorage
       localStorage.setItem('wkly_v4', JSON.stringify(D));
       setSaveDot('saved');
       setSaveLbl('저장됨 (로컬) ' + new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'}));
     }
-  }, 600);
+    _writeTimer = setTimeout(()=>{ _iAmWriting = false; }, 3000);
+  }, 2000);
 }
+
+/* 새 주차 추가/삭제처럼 구조 변경이 필요할 때만 전체 저장 */
+async function persistFull(){
+  if(!_ref){ localStorage.setItem('wkly_v4', JSON.stringify(D)); return; }
+  try{ await _ref.set(D); }
+  catch(e){ console.error('Firebase full write error', e); }
+}
+
+/* cur 탭 전환은 저장 불필요 (로컬만) */
+function persistCurOnly(){ /* no-op: cur는 로컬만 */ }
+
+/* Firebase key에 . $ # [ ] / 못 씀 → 이름 인코딩 */
+function encodeKey(s){ return s.replace(/[.$#\[\]/]/g,'_'); }
+
 
 function setSaveDot(state){
   const dot = document.querySelector('.save-dot');
@@ -996,29 +1082,90 @@ function fmtWeekLabel(dateStr){
 /* ── 탭 ──────────────────────────────────────────── */
 function renderTabs(){
   const weekList = Object.values(D.weeks);
-  // 날짜 오름차순 정렬
   weekList.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  document.getElementById('weekTabs').innerHTML =
-    weekList.map(w=>{
-      const n = Object.values(w.rows||{}).reduce((cnt,r)=>{
-        const issues = normalizeIssues(r.issues);
-        return cnt + issues.filter(i=>i.text&&i.text.trim()&&i.status!=='done'&&i.status!=='none').length;
-      },0);
-      const canDelete = weekList.length > 1;
+
+  // 이번 달 기준 분리
+  const now = new Date();
+  const thisYM = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+  const tabItems  = weekList.filter(w=>(w.date||'').slice(0,7) === thisYM);
+  const moreItems = weekList.filter(w=>(w.date||'').slice(0,7) !== thisYM);
+
+  // 이번 달 주차가 하나도 없으면 가장 최신 주차 1개는 탭으로 보여줌
+  const visibleTabs = tabItems.length > 0 ? tabItems : weekList.slice(-1);
+  const visibleMore = tabItems.length > 0 ? moreItems : weekList.slice(0,-1);
+
+  const canDelete = weekList.length > 1;
+
+  function issueCnt(w){
+    return Object.values(w.rows||{}).reduce((cnt,r)=>{
+      return cnt + normalizeIssues(r.issues).filter(i=>i.text&&i.text.trim()&&i.status!=='done'&&i.status!=='none').length;
+    },0);
+  }
+
+  // 탭 HTML
+  const tabsHTML = visibleTabs.map(w=>{
+    const n = issueCnt(w);
+    const label = fmtWeekLabel(w.date);
+    const delBtn = canDelete
+      ? `<button class="week-tab-del" onclick="openDelModal(event,'${w.id}')" title="이 주차 삭제">×</button>`
+      : '';
+    return `<div class="week-tab-wrap">
+      <button class="week-tab ${w.id===D.cur?'active':''}" onclick="switchWeek('${w.id}')">
+        ${x(label||w.id)}
+        ${n?`<span class="issue-dot">${n}</span>`:''}
+      </button>
+      ${delBtn}
+    </div>`;
+  }).join('');
+
+  // 드롭다운 HTML (이전 달 주차들)
+  let moreHTML = '';
+  if(visibleMore.length > 0){
+    const activeInMore = visibleMore.some(w=>w.id===D.cur);
+    const dropItems = visibleMore.slice().reverse().map(w=>{
+      const n = issueCnt(w);
       const label = fmtWeekLabel(w.date);
       const delBtn = canDelete
-        ? `<button class="week-tab-del" onclick="openDelModal(event,'${w.id}')" title="이 주차 삭제">×</button>`
+        ? `<button style="margin-left:auto;background:none;border:none;color:#DC2626;cursor:pointer;font-size:13px;padding:0 2px" onclick="openDelModal(event,'${w.id}')" title="삭제">×</button>`
         : '';
-      return `<div class="week-tab-wrap">
-        <button class="week-tab ${w.id===D.cur?'active':''}" onclick="switchWeek('${w.id}')">
-          ${x(label||w.id)}
-          ${n?`<span class="issue-dot">${n}</span>`:''}
-        </button>
+      return `<button class="week-dropdown-item ${w.id===D.cur?'active':''}" onclick="switchWeek('${w.id}');closeMoreDropdown()">
+        ${x(label||w.id)}
+        ${n?`<span class="issue-dot" style="width:16px;height:16px;font-size:9px">${n}</span>`:''}
         ${delBtn}
-      </div>`;
+      </button>`;
     }).join('');
+
+    moreHTML = `<div class="week-more-wrap" id="moreWrap">
+      <button class="week-more-btn ${activeInMore?'has-active':''}" onclick="toggleMoreDropdown(event)">
+        이전 달 ${visibleMore.length}개 ▾
+      </button>
+      <div class="week-dropdown" id="moreDropdown">${dropItems}</div>
+    </div>`;
+  }
+
+  document.getElementById('weekTabs').innerHTML = tabsHTML;
+
+  const existing = document.getElementById('moreWrap');
+  if(existing) existing.remove();
+  if(moreHTML){
+    document.getElementById('weekTabs').insertAdjacentHTML('afterend', moreHTML);
+  }
 }
-function switchWeek(id){ D.cur=id; persist(); renderAll(); }
+
+function toggleMoreDropdown(e){
+  e.stopPropagation();
+  const dd = document.getElementById('moreDropdown');
+  if(!dd) return;
+  dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+}
+function closeMoreDropdown(){
+  const dd = document.getElementById('moreDropdown');
+  if(dd) dd.style.display = 'none';
+}
+document.addEventListener('click', ()=>closeMoreDropdown());
+
+function switchWeek(id){ D.cur=id; persistCurOnly(); renderAll(); }
 
 /* ── 메타 ────────────────────────────────────────── */
 function renderMeta(){
@@ -1071,7 +1218,7 @@ function confirmDelWeek(){
   const remaining = Object.keys(D.weeks);
   D.cur = remaining[remaining.length - 1];
   closeDelModal();
-  persist();
+  persistFull();
   renderAll();
   toast('🗑️ 주차 회의록이 삭제되었습니다');
 }
@@ -1381,7 +1528,7 @@ function confirmWeek(){
     id, date, weekLabel:label, attendees:attend, notice:'',
     rows: Object.fromEntries(D.members.map(m=>[m.name,{wip:'',done:'',next:'',issues:[{text:'',status:'none'}]}]))
   };
-  D.cur=id; persist(); closeWeekModal(); renderAll();
+  D.cur=id; persistFull(); closeWeekModal(); renderAll();
   toast('✨ 새 주차가 추가되었습니다');
 }
 
