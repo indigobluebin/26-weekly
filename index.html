@@ -191,7 +191,98 @@ body {
   cursor: pointer; font-family: inherit;
   transition: all .15s;
 }
-.nav-add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-lt); }
+/* ── 이슈 전용 탭 버튼 ── */
+.issue-tab-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px 6px 0 0;
+  border: 1.5px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: var(--text3);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  font-family: inherit;
+  transition: all .15s;
+  bottom: -1.5px; position: relative;
+  height: 38px;
+  flex-shrink: 0;
+}
+.issue-tab-btn:hover { background: #FEF2F2; color: var(--red); }
+.issue-tab-btn.active {
+  background: #fff;
+  border-color: var(--border);
+  border-bottom-color: #fff;
+  color: var(--red);
+}
+.issue-tab-divider {
+  width: 1.5px; background: var(--border);
+  align-self: stretch; margin: 10px 4px 0;
+  flex-shrink: 0;
+}
+
+/* ── 이슈 전용 뷰 ── */
+.issue-view {
+  padding: 16px 0;
+}
+.issue-view-empty {
+  text-align: center; padding: 60px 20px;
+  color: var(--text3); font-size: 14px;
+}
+.issue-view-empty div { font-size: 36px; margin-bottom: 12px; }
+.issue-card-group { margin-bottom: 20px; }
+.issue-card-group-title {
+  font-size: 12px; font-weight: 700; color: var(--text3);
+  letter-spacing: .5px; padding: 0 4px 8px;
+  border-bottom: 1.5px solid var(--border);
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.issue-card {
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 13px 16px;
+  margin-bottom: 8px;
+  display: flex; align-items: flex-start; gap: 12px;
+  transition: box-shadow .15s;
+}
+.issue-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.issue-card-left { flex: 1; min-width: 0; }
+.issue-card-text {
+  font-size: 14px; color: var(--text);
+  line-height: 1.6; margin-bottom: 6px;
+  white-space: pre-wrap; word-break: break-all;
+}
+.issue-card-meta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.issue-card-name {
+  font-size: 12px; font-weight: 700; color: var(--text2);
+}
+.issue-card-week {
+  font-size: 11px; color: var(--text3);
+  background: var(--bg); border-radius: 4px;
+  padding: 1px 7px;
+}
+.issue-card-right { flex-shrink: 0; }
+.issue-card-sel {
+  border: 1.5px solid #FDE68A; border-radius: 6px;
+  background: #FFFBEB; color: #92400E;
+  font-size: 12px; font-weight: 700;
+  font-family: inherit; cursor: pointer; outline: none;
+  padding: 5px 8px; transition: all .12s;
+}
+.issue-card-sel.s-done   { background:#DCFCE7;color:#166534;border-color:#86EFAC; }
+.issue-card-sel.s-wip    { background:#DBEAFE;color:#1E40AF;border-color:#93C5FD; }
+.issue-card-sel.s-check  { background:#FEF3C7;color:#92400E;border-color:#FCD34D; }
+.issue-card-sel.s-urgent { background:#FEE2E2;color:#991B1B;border-color:#FCA5A5; }
+.issue-card-sel.s-none   { background:#F1F5F9;color:#64748B;border-color:#CBD5E1; }
+.issue-urgent-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--red); flex-shrink: 0; margin-top: 6px;
+}
+
 
 .nav-right {
   display: flex; align-items: center; gap: 8px;
@@ -756,6 +847,8 @@ col.c-next   { width: 180px; }
 <!-- NAV -->
 <nav class="topnav">
   <div class="nav-logo">📋 <span>주간</span>회의록</div>
+  <button class="issue-tab-btn" id="issueTabBtn" onclick="switchToIssueTab()">🚨 이슈 <span id="issueTabCnt" style="display:none;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px"></span></button>
+  <div class="issue-tab-divider"></div>
   <div class="week-tabs" id="weekTabs"></div>
   <button class="nav-add-btn" onclick="openWeekModal()">＋ 새 주차</button>
   <div class="nav-right">
@@ -767,6 +860,9 @@ col.c-next   { width: 180px; }
 
 <!-- SHEET -->
 <div class="sheet-wrapper">
+
+  <!-- 이슈 전용 뷰 -->
+  <div id="issueView" style="display:none" class="issue-view"></div>
 
   <!-- 이슈 배너 -->
   <div class="issue-banner" id="issueBanner" style="display:none">
@@ -1168,7 +1264,148 @@ document.addEventListener('click', (e)=>{
   if(wrap && !wrap.contains(e.target)) closeMoreDropdown();
 });
 
-function switchWeek(id){ D.cur=id; persistCurOnly(); renderAll(); }
+/* ══════════════════════════════════════════════
+   이슈 전용 탭
+══════════════════════════════════════════════ */
+let _isIssueTab = false;
+
+function switchToIssueTab(){
+  _isIssueTab = true;
+  renderIssueTab();
+}
+function switchWeek(id){
+  _isIssueTab = false;
+  D.cur = id;
+  persistCurOnly();
+  renderAll();
+}
+
+function renderIssueTab(){
+  // 탭 active 상태
+  document.getElementById('issueTabBtn').classList.add('active');
+  document.querySelectorAll('.week-tab').forEach(t=>t.classList.remove('active'));
+
+  // 일반 뷰 숨기기
+  document.getElementById('issueBanner').style.display = 'none';
+  document.querySelector('.sheet-meta').style.display  = 'none';
+  document.querySelector('.sheet-table').style.display = 'none';
+  document.getElementById('issueView').style.display   = 'block';
+
+  // 전체 주차에서 미해결 이슈 수집
+  const weekList = Object.values(D.weeks)
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||'')); // 최신순
+
+  const UNRESOLVED = ['urgent','wip','check'];
+  const urgentItems=[], wipItems=[], checkItems=[];
+
+  weekList.forEach(w=>{
+    const weekLabel = fmtWeekLabel(w.date);
+    D.members.forEach(m=>{
+      const r = (w.rows||{})[m.name]||{};
+      normalizeIssues(r.issues).forEach((iss,ii)=>{
+        if(!iss.text||!iss.text.trim()) return;
+        if(!UNRESOLVED.includes(iss.status)) return;
+        const item = {weekId:w.id, weekLabel, memberName:m.name, pal:m.pal, ii, iss};
+        if(iss.status==='urgent') urgentItems.push(item);
+        else if(iss.status==='wip') wipItems.push(item);
+        else checkItems.push(item);
+      });
+    });
+  });
+
+  const allItems = [...urgentItems, ...wipItems, ...checkItems];
+
+  // 이슈 탭 카운트 배지 갱신
+  const cntEl = document.getElementById('issueTabCnt');
+  if(allItems.length){ cntEl.textContent=allItems.length; cntEl.style.display=''; }
+  else { cntEl.style.display='none'; }
+
+  if(!allItems.length){
+    document.getElementById('issueView').innerHTML =
+      `<div class="issue-view-empty"><div>🎉</div>미해결 이슈가 없어요!<br><span style="font-size:12px;margin-top:6px;display:block">모든 이슈가 해결됐어요.</span></div>`;
+    return;
+  }
+
+  function renderGroup(items, title, dotColor){
+    if(!items.length) return '';
+    const cards = items.map(({weekId,weekLabel,memberName,pal,ii,iss})=>{
+      const p = PAL[pal%PAL.length];
+      const sopts = STATS.map(s=>
+        `<option value="${s.v}" ${iss.status===s.v?'selected':''}>${s.l}</option>`
+      ).join('');
+      const sc = STATS.find(s=>s.v===iss.status)||STATS[0];
+      return `<div class="issue-card">
+        <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0;margin-top:6px"></div>
+        <div class="issue-card-left">
+          <div class="issue-card-text">${x(iss.text)}</div>
+          <div class="issue-card-meta">
+            <span class="issue-card-name" style="color:${p.af}">${x(memberName)}</span>
+            <span class="issue-card-week">${x(weekLabel)}</span>
+          </div>
+        </div>
+        <div class="issue-card-right">
+          <select class="issue-card-sel ${sc.c}"
+            onchange="updIssueFromTab('${weekId}','${x(memberName)}',${ii},this.value,this)">
+            ${sopts}
+          </select>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="issue-card-group">
+      <div class="issue-card-group-title">
+        <span style="width:8px;height:8px;border-radius:50%;background:${dotColor};display:inline-block"></span>
+        ${title} <span style="font-weight:400;color:var(--text3)">${items.length}건</span>
+      </div>
+      ${cards}
+    </div>`;
+  }
+
+  document.getElementById('issueView').innerHTML =
+    renderGroup(urgentItems,'🚨 긴급','#EF4444') +
+    renderGroup(wipItems,'🔄 처리중','#3B82F6') +
+    renderGroup(checkItems,'⏳ 확인 필요','#F59E0B');
+}
+
+function updIssueFromTab(weekId, memberName, ii, newStatus, sel){
+  // 상태 변경 → Firebase 저장
+  const w = D.weeks[weekId];
+  if(!w||!w.rows||!w.rows[memberName]) return;
+  const issues = normalizeIssues(w.rows[memberName].issues);
+  issues[ii].status = newStatus;
+  w.rows[memberName].issues = issues;
+
+  // select 스타일 갱신
+  const sc = STATS.find(s=>s.v===newStatus)||STATS[0];
+  sel.className = 'issue-card-sel ' + sc.c;
+
+  // 완료/없음이면 카드 페이드 아웃 후 재렌더
+  if(newStatus==='done'||newStatus==='none'){
+    const card = sel.closest('.issue-card');
+    card.style.transition='opacity .3s';
+    card.style.opacity='0';
+    setTimeout(()=>renderIssueTab(), 350);
+  }
+
+  // 이슈 탭 카운트 갱신
+  const UNRESOLVED=['urgent','wip','check'];
+  const total = Object.values(D.weeks).reduce((cnt,w)=>
+    cnt+D.members.reduce((c,m)=>
+      c+normalizeIssues((w.rows||{})[m.name]?.issues)
+        .filter(i=>i.text&&i.text.trim()&&UNRESOLVED.includes(i.status)).length
+    ,0)
+  ,0);
+  const cntEl=document.getElementById('issueTabCnt');
+  if(total){cntEl.textContent=total;cntEl.style.display='';}
+  else{cntEl.style.display='none';}
+
+  // D.cur를 weekId로 임시 설정해서 persist
+  const prevCur = D.cur;
+  D.cur = weekId;
+  persist();
+  D.cur = prevCur;
+}
+
+
 
 /* ── 메타 ────────────────────────────────────────── */
 function renderMeta(){
@@ -1597,7 +1834,34 @@ function fixTextareaValues(){
 /* override renderTable to fix textarea values after render */
 const _renderTable = renderTable;
 function renderAll(){
-  renderTabs(); renderMeta(); renderBanner();
+  renderTabs();
+
+  // 이슈 탭 카운트 배지 항상 갱신
+  const UNRESOLVED=['urgent','wip','check'];
+  const total = Object.values(D.weeks).reduce((cnt,w)=>
+    cnt+D.members.reduce((c,m)=>
+      c+normalizeIssues((w.rows||{})[m.name]?.issues)
+        .filter(i=>i.text&&i.text.trim()&&UNRESOLVED.includes(i.status)).length
+    ,0)
+  ,0);
+  const cntEl=document.getElementById('issueTabCnt');
+  if(cntEl){
+    if(total){cntEl.textContent=total;cntEl.style.display='';}
+    else{cntEl.style.display='none';}
+  }
+
+  if(_isIssueTab){
+    renderIssueTab();
+    return;
+  }
+
+  // 일반 주차 뷰
+  document.getElementById('issueTabBtn').classList.remove('active');
+  document.getElementById('issueView').style.display   = 'none';
+  document.querySelector('.sheet-meta').style.display  = '';
+  document.querySelector('.sheet-table').style.display = '';
+
+  renderMeta(); renderBanner();
   _renderTable();
   requestAnimationFrame(fixTextareaValues);
 }
