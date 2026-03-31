@@ -1021,7 +1021,7 @@ function startRealtimeListener(){
     document.getElementById('fb-loading').style.display = 'none';
     document.querySelector('.topnav').style.display = '';
     document.querySelector('.sheet-wrapper').style.display = '';
-    renderAll();
+    if(_isIssueTab) renderIssueTab(); else renderAll();
     setSaveDot('saved');
     setSaveLbl('저장됨 ' + new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'}));
   }, err => {
@@ -1030,7 +1030,7 @@ function startRealtimeListener(){
     document.getElementById('fb-loading').style.display = 'none';
     document.querySelector('.topnav').style.display = '';
     document.querySelector('.sheet-wrapper').style.display = '';
-    renderAll();
+    if(_isIssueTab) renderIssueTab(); else renderAll();
     setSaveDot('err'); setSaveLbl('연결 오류');
     toast('⚠️ Firebase 연결 실패 — 로컬 모드로 동작 중');
   });
@@ -1367,36 +1367,22 @@ function renderIssueTab(){
 }
 
 function updIssueFromTab(weekId, memberName, ii, newStatus, sel){
-  // 상태 변경 → Firebase 저장
   const w = D.weeks[weekId];
   if(!w||!w.rows||!w.rows[memberName]) return;
   const issues = normalizeIssues(w.rows[memberName].issues);
   issues[ii].status = newStatus;
   w.rows[memberName].issues = issues;
 
-  // select 스타일 갱신
-  const sc = STATS.find(s=>s.v===newStatus)||STATS[0];
-  sel.className = 'issue-card-sel ' + sc.c;
-
-  // 완료/없음이면 카드 페이드 아웃 후 재렌더
+  // 완료/없음이면 페이드 아웃 후 재렌더, 그 외엔 바로 재렌더
   if(newStatus==='done'||newStatus==='none'){
     const card = sel.closest('.issue-card');
     card.style.transition='opacity .3s';
     card.style.opacity='0';
     setTimeout(()=>renderIssueTab(), 350);
+  } else {
+    // 미해결 상태끼리 변경 → 그룹 이동 (즉시 재렌더)
+    renderIssueTab();
   }
-
-  // 이슈 탭 카운트 갱신
-  const UNRESOLVED=['urgent','wip','check'];
-  const total = Object.values(D.weeks).reduce((cnt,w)=>
-    cnt+D.members.reduce((c,m)=>
-      c+normalizeIssues((w.rows||{})[m.name]?.issues)
-        .filter(i=>i.text&&i.text.trim()&&UNRESOLVED.includes(i.status)).length
-    ,0)
-  ,0);
-  const cntEl=document.getElementById('issueTabCnt');
-  if(total){cntEl.textContent=total;cntEl.style.display='';}
-  else{cntEl.style.display='none';}
 
   // D.cur를 weekId로 임시 설정해서 persist
   const prevCur = D.cur;
