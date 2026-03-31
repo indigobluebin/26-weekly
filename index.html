@@ -1380,15 +1380,32 @@ function updIssueFromTab(weekId, memberName, ii, newStatus, sel){
     card.style.opacity='0';
     setTimeout(()=>renderIssueTab(), 350);
   } else {
-    // 미해결 상태끼리 변경 → 그룹 이동 (즉시 재렌더)
     renderIssueTab();
   }
 
-  // D.cur를 weekId로 임시 설정해서 persist
-  const prevCur = D.cur;
-  D.cur = weekId;
-  persist();
-  D.cur = prevCur;
+  // 딜레이 없이 해당 주차 row만 즉시 저장
+  persistIssueRow(weekId, memberName);
+}
+
+/* 이슈탭 전용 즉시 저장 — 딜레이 없이 특정 주차/멤버 row만 업데이트 */
+async function persistIssueRow(weekId, memberName){
+  if(!_ref){
+    localStorage.setItem('wkly_v4', JSON.stringify(D));
+    return;
+  }
+  setSaveDot('saving'); setSaveLbl('저장 중...');
+  try{
+    const row = D.weeks[weekId].rows[memberName];
+    const updates = {};
+    updates[`weeks/${weekId}/rows/${encodeKey(memberName)}`] = row;
+    await _ref.update(updates);
+    setSaveDot('saved');
+    setSaveLbl('저장됨 ' + new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){
+    setSaveDot('err'); setSaveLbl('저장 실패');
+    console.error('Firebase issue save error', e);
+    toast('⚠️ 저장 실패 — 네트워크를 확인해주세요');
+  }
 }
 
 
