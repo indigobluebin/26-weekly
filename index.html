@@ -953,7 +953,7 @@ col.c-next   { width: 180px; }
    Firebase 초기화 & 연결 관리
 ══════════════════════════════════════════════ */
 const FB_LS_KEY = 'weekly_fb_url';
-let _db = null, _ref = null, _saveTimer = null;
+let _db = null, _ref = null;
 
 function getFbUrl(){ return localStorage.getItem(FB_LS_KEY)||''; }
 function setFbUrl(u){ localStorage.setItem(FB_LS_KEY, u); }
@@ -990,31 +990,37 @@ function latestWeekId(weeks){
 
 /* ── 실시간 리스너 시작 ── */
 let _firstLoad = true;
-let _iAmWriting = false;   // 내가 타이핑/저장 중인지 여부
-let _writeTimer = null;    // 타이핑 감지 타이머
+let _pendingSaves = {};  // { 'weekId/memberName': true } 저장 진행 중인 row 추적
 
 function startRealtimeListener(){
   setSaveDot('saving');
   showSyncBar();
   _ref.on('value', snap => {
     const val = snap.val();
-
-    // 내가 저장 중이거나 타이핑 중이면 리렌더 완전 차단
-    if(!_firstLoad && _iAmWriting){
-      hideSyncBar();
-      return;
-    }
-
     if(val){
       const prevCur = D.cur;
-      D = val;
+
       if(_firstLoad){
+        // 최초 로드: 전체 덮어쓰기
+        D = val;
         D.cur = latestWeekId(D.weeks);
         _firstLoad = false;
-      } else if(D.weeks[prevCur]){
-        D.cur = prevCur;
       } else {
-        D.cur = latestWeekId(D.weeks);
+        // 이후: 저장 진행 중인 row는 내 메모리 유지, 나머지만 Firebase로 갱신
+        const newD = val;
+        Object.entries(newD.weeks || {}).forEach(([wid, week]) => {
+          Object.entries(week.rows || {}).forEach(([name, row]) => {
+            const key = `${wid}/${name}`;
+            if(_pendingSaves[key]) {
+              // 내가 저장 중인 row → Firebase 값 무시, 내 메모리 유지
+              if(D.weeks[wid] && D.weeks[wid].rows && D.weeks[wid].rows[name]) {
+                newD.weeks[wid].rows[name] = D.weeks[wid].rows[name];
+              }
+            }
+          });
+        });
+        D = newD;
+        D.cur = D.weeks[prevCur] ? prevCur : latestWeekId(D.weeks);
       }
     }
     hideSyncBar();
@@ -1036,30 +1042,31 @@ function startRealtimeListener(){
   });
 }
 
-/* ── persist → 셀 단위 Firebase 저장 (덮어쓰기 방지) ── */
-function persist(){
-  _iAmWriting = true;
-  clearTimeout(_writeTimer);
+/* ── persist → 특정 멤버 row만 저장 (덮어쓰기 방지) ── */
+let _saveTimers = {};  // { 'weekId/memberName': timerId }
+
+function persist(weekId, memberName){
   setSaveDot('saving'); setSaveLbl('저장 중...');
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(async ()=>{
+  const key = `${weekId}/${memberName || '_meta'}`;
+  // 저장 진행 중 표시 (리스너에서 이 row 덮어쓰기 방지)
+  _pendingSaves[key] = true;
+  clearTimeout(_saveTimers[key]);
+  _saveTimers[key] = setTimeout(async ()=>{
     if(_ref){
       showSyncBar();
       try{
-        // 전체 덮어쓰기 대신 현재 주차 rows만 업데이트
-        const wid = D.cur;
+        const wid = weekId || D.cur;
         const updates = {};
-        updates[`weeks/${wid}/date`]      = D.weeks[wid].date      || '';
-        updates[`weeks/${wid}/weekLabel`] = D.weeks[wid].weekLabel || '';
-        updates[`weeks/${wid}/attendees`] = D.weeks[wid].attendees || '';
-        updates[`weeks/${wid}/notice`]    = D.weeks[wid].notice    || '';
-        updates[`weeks/${wid}/id`]        = wid;
-        // rows는 멤버별로 분리 저장
-        const rows = D.weeks[wid].rows || {};
-        Object.entries(rows).forEach(([name, row])=>{
-          updates[`weeks/${wid}/rows/${encodeKey(name)}`] = row;
-        });
-        updates['members'] = D.members;
+        if(memberName){
+          const row = (D.weeks[wid].rows || {})[memberName];
+          if(row) updates[`weeks/${wid}/rows/${memberName}`] = row;
+        } else {
+          updates[`weeks/${wid}/date`]      = D.weeks[wid].date      || '';
+          updates[`weeks/${wid}/weekLabel`] = D.weeks[wid].weekLabel || '';
+          updates[`weeks/${wid}/attendees`] = D.weeks[wid].attendees || '';
+          updates[`weeks/${wid}/notice`]    = D.weeks[wid].notice    || '';
+          updates[`weeks/${wid}/id`]        = wid;
+        }
         await _ref.update(updates);
         hideSyncBar();
         setSaveDot('saved');
@@ -1075,7 +1082,8 @@ function persist(){
       setSaveDot('saved');
       setSaveLbl('저장됨 (로컬) ' + new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'}));
     }
-    _writeTimer = setTimeout(()=>{ _iAmWriting = false; }, 3000);
+    // 저장 완료 후 3초 뒤 보호 해제
+    setTimeout(()=>{ delete _pendingSaves[key]; }, 3000);
   }, 2000);
 }
 
@@ -1387,17 +1395,21 @@ function updIssueFromTab(weekId, memberName, ii, newStatus, sel){
   persistIssueRow(weekId, memberName);
 }
 
-/* 이슈탭 전용 즉시 저장 — 딜레이 없이 특정 주차/멤버 row만 업데이트 */
+/* 이슈탭 전용 즉시 저장 */
 async function persistIssueRow(weekId, memberName){
   if(!_ref){
     localStorage.setItem('wkly_v4', JSON.stringify(D));
     return;
   }
+  const key = `${weekId}/${memberName}`;
+  _pendingSaves[key] = true;
+  clearTimeout(_saveTimers[key]);
+
   setSaveDot('saving'); setSaveLbl('저장 중...');
   try{
     const row = D.weeks[weekId].rows[memberName];
     const updates = {};
-    updates[`weeks/${weekId}/rows/${encodeKey(memberName)}`] = row;
+    updates[`weeks/${weekId}/rows/${memberName}`] = row;
     await _ref.update(updates);
     setSaveDot('saved');
     setSaveLbl('저장됨 ' + new Date().toLocaleTimeString('ko',{hour:'2-digit',minute:'2-digit'}));
@@ -1406,6 +1418,7 @@ async function persistIssueRow(weekId, memberName){
     console.error('Firebase issue save error', e);
     toast('⚠️ 저장 실패 — 네트워크를 확인해주세요');
   }
+  setTimeout(()=>{ delete _pendingSaves[key]; }, 3000);
 }
 
 
@@ -1428,7 +1441,7 @@ function saveMeta(){
   w.weekLabel = fmtWeekLabel(w.date); // 자동 계산
   w.attendees = document.getElementById('mAttend').value;
   w.notice    = document.getElementById('mNotice').value;
-  persist(); renderTabs();
+  persist(D.cur, null); renderTabs();
   // 날짜 바뀌면 주차 표시도 갱신
   const disp = document.getElementById('mWeekDisplay');
   if(disp) disp.textContent = w.weekLabel||'';
@@ -1606,7 +1619,7 @@ function upd(el){
   if(!w.rows) w.rows={};
   if(!w.rows[name]) w.rows[name]={wip:'',done:'',next:'',issues:[newIssue()]};
   w.rows[name][field]=el.value;
-  persist(); renderTabs(); renderBanner();
+  persist(D.cur, name); renderTabs(); renderBanner();
 }
 function styleSelect(sel){
   const sc=STATS.find(s=>s.v===sel.value)||STATS[0];
@@ -1626,14 +1639,13 @@ function getRow(memberName){
 function updIssue(memberName, ii, field, value){
   const r = getRow(memberName);
   r.issues[ii][field] = value;
-  persist(); renderTabs(); renderBanner();
+  persist(D.cur, memberName); renderTabs(); renderBanner();
 }
 
 function addIssue(memberName){
   const r = getRow(memberName);
   r.issues.push(newIssue());
-  persist();
-  // 해당 셀만 다시 렌더 (전체 re-render 없이)
+  persist(D.cur, memberName);
   refreshIssueCell(memberName);
 }
 
@@ -1641,7 +1653,7 @@ function removeIssue(memberName, ii){
   const r = getRow(memberName);
   if(r.issues.length<=1){ r.issues[0]={text:'',status:'none'}; }
   else { r.issues.splice(ii,1); }
-  persist(); renderTabs(); renderBanner();
+  persist(D.cur, memberName); renderTabs(); renderBanner();
   refreshIssueCell(memberName);
 }
 
@@ -1734,7 +1746,7 @@ function saveMembers(){
   document.querySelectorAll('.mc-name').forEach((inp,i)=>{
     if(D.members[i]) D.members[i].name=inp.value;
   });
-  persist(); closeDrawer(); renderAll();
+  persistFull(); closeDrawer(); renderAll();
   toast('👥 작성자 정보가 저장되었습니다');
 }
 
