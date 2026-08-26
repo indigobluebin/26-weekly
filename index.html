@@ -701,6 +701,20 @@ col.c-next   { width: 180px; }
   transition: all .15s;
 }
 .drawer-add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-lt); }
+
+/* 드래그 핸들 */
+.mc-drag {
+  cursor: grab; color: var(--text3); font-size: 16px;
+  padding: 0 4px; user-select: none; flex-shrink: 0;
+  display: flex; align-items: center;
+}
+.mc-drag:active { cursor: grabbing; }
+.mc.dragging {
+  opacity: .4; border: 2px dashed var(--accent);
+}
+.mc.drag-over {
+  border-top: 3px solid var(--accent);
+}
 .drawer-save-btn {
   padding: 10px 22px; background: var(--accent); color: #fff;
   border: none; border-radius: 8px; font-size: 13px; font-weight: 700;
@@ -1703,8 +1717,14 @@ function renderDrawer(){
     const palOpts=PAL.map((pp,pi)=>
       `<option value="${pi}" ${m.pal===pi?'selected':''} style="background:${pp.bg}">색상${pi+1}</option>`
     ).join('');
-    return `<div class="mc">
+    return `<div class="mc" draggable="true" data-mi="${mi}"
+      ondragstart="onDragStart(event,${mi})"
+      ondragover="onDragOver(event,${mi})"
+      ondragleave="onDragLeave(event)"
+      ondrop="onDrop(event,${mi})"
+      ondragend="onDragEnd(event)">
       <div class="mc-top">
+        <span class="mc-drag" title="드래그하여 순서 변경">⠿</span>
         <div class="mc-av" style="background:${p.ab};color:${p.af}">${(m.name||'?')[0]}</div>
         <input class="mc-name" value="${x(m.name)}"
           oninput="D.members[${mi}].name=this.value" placeholder="이름">
@@ -1725,6 +1745,37 @@ function renderDrawer(){
       </div>
     </div>`;
   }).join('');
+}
+
+/* ── 드래그 순서 변경 ── */
+let _dragFromIdx = null;
+
+function onDragStart(e, mi){
+  _dragFromIdx = mi;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function onDragOver(e, mi){
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.mc').forEach(el=>el.classList.remove('drag-over'));
+  if(mi !== _dragFromIdx) e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e){
+  e.currentTarget.classList.remove('drag-over');
+}
+function onDrop(e, toIdx){
+  e.preventDefault();
+  if(_dragFromIdx === null || _dragFromIdx === toIdx) return;
+  const moved = D.members.splice(_dragFromIdx, 1)[0];
+  D.members.splice(toIdx, 0, moved);
+  _dragFromIdx = null;
+  renderDrawer();
+}
+function onDragEnd(e){
+  e.currentTarget.classList.remove('dragging');
+  document.querySelectorAll('.mc').forEach(el=>el.classList.remove('drag-over'));
+  _dragFromIdx = null;
 }
 
 function addMember(){
